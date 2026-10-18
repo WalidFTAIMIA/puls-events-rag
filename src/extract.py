@@ -7,7 +7,7 @@ URL = (
 )
 
 LIMIT = 100
-MAX_RECORDS = 10000
+MAX_RECORDS = 10000 # Nombre maximum d'événements à extraire
 
 offset = 0
 all_events = []
