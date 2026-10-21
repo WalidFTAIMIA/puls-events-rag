@@ -23,6 +23,15 @@ df = pd.read_csv(INPUT_FILE)
 
 print(f"{len(df)} événements chargés")
 
+def clean_value(value):
+    """
+    Remplace les NaN par une chaîne vide.
+    """
+
+    if pd.isna(value):
+        return ""
+
+    return str(value).strip()
 
 # --------------------------------------------------
 # Création des documents LangChain
@@ -33,31 +42,31 @@ documents = []
 for _, row in df.iterrows():
 
     content = f"""
-Titre : {row.get('title_fr', '')}
+{clean_value(row.get('description_fr'))}
 
 Description :
-{row.get('description_fr', '')}
+{clean_value(row.get('description_fr'))}
 
 Mots clés :
-{row.get('keywords_fr', '')}
+{clean_value(row.get('keywords_fr', ''))}
 
 Ville :
-{row.get('location_city', '')}
+{clean_value(row.get('location_city', ''))}
 
 Catégorie :
-{row.get('category', '')}
+{clean_value(row.get('category', '')) or "Non renseignée"}
 
 Date :
-{row.get('firstdate_begin', '')}
+{clean_value(row.get('firstdate_begin', ''))}
 """
 
     metadata = {
-        "uid": str(row.get("uid")),
-        "title": str(row.get("title_fr")),
-        "city": str(row.get("location_city")),
-        "region": str(row.get("location_region")),
-        "category": str(row.get("category")),
-        "date": str(row.get("firstdate_begin")),
+    "uid": clean_value(row.get("uid")),
+    "title": clean_value(row.get("title_fr")),
+    "city": clean_value(row.get("location_city")),
+    "region": clean_value(row.get("location_region")),
+    "category": clean_value(row.get("category")) or "Non renseignée",
+    "date": clean_value(row.get("firstdate_begin")),
     }
 
     documents.append(

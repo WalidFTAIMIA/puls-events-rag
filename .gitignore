@@ -4,6 +4,9 @@ data/*.csv
 # Virtual environment
 .venv/
 
+# Secrets
+.env
+
 # Python
 __pycache__/
 *.pyc

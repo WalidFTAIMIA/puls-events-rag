@@ -57,6 +57,7 @@ print(
 
 # Sauvegarde
 
+df = df.fillna("")
 df.to_csv(
     OUTPUT_FILE,
     index=False
