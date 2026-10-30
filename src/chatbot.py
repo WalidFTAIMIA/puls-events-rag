@@ -1,13 +1,10 @@
 import os
 
 from dotenv import load_dotenv
-
+from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import ChatPromptTemplate
-
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_mistralai import ChatMistralAI
-
-from langchain_community.vectorstores import FAISS
 
 
 # ==================================================
@@ -85,7 +82,7 @@ vectorstore = FAISS.load_local(
 )
 
 retriever = vectorstore.as_retriever(
-    search_kwargs={"k": 5}
+    search_kwargs={"k": 10}
 )
 
 print("Vectorstore chargé")
@@ -98,7 +95,7 @@ print("Vectorstore chargé")
 print("Connexion à Mistral...")
 
 llm = ChatMistralAI(
-    model="mistral-small-2603",
+    model="ministral-3b-2512",
     temperature=0.1,
     api_key=API_KEY,
 )
@@ -122,11 +119,11 @@ prompt = ChatPromptTemplate.from_messages(
 # CONTEXTE
 # ==================================================
 
-def build_context(documents):
+def build_context(retrieved_documents):
 
     chunks = []
 
-    for doc in documents:
+    for doc in retrieved_documents:
 
         meta = doc.metadata
 
@@ -152,15 +149,15 @@ Contenu :
 
 def answer_question(question: str):
 
-    documents = retriever.invoke(question)
+    retrieved_documents = retriever.invoke(question)
 
-    if not documents:
+    if not retrieved_documents:
         return (
             "Je ne dispose pas de suffisamment "
             "d'informations dans les événements indexés."
         )
 
-    context = build_context(documents)
+    context = build_context(retrieved_documents)
 
     try:
 
@@ -168,16 +165,15 @@ def answer_question(question: str):
             question=question,
             context=context,
         )
-
         response = llm.invoke(messages)
 
         return response.content
 
-    except Exception as e:
+    except Exception as error:  # noqa: BLE001 - l'appel API doit rester non bloquant
 
         print("\nFAISS a retrouvé :\n")
 
-        for doc in documents:
+        for doc in retrieved_documents:
 
             print(
                 f"- {doc.metadata.get('title', '')}"
@@ -187,7 +183,7 @@ def answer_question(question: str):
 
         return (
             "\nErreur lors de l'appel Mistral :\n"
-            f"{str(e)}"
+            f"{error}"
         )
 
 
