@@ -73,6 +73,119 @@ Pour exécuter les deux étapes depuis la racine du projet :
 .\.venv\Scripts\python.exe src/preprocess.py
 ```
 
+### Étape 3 - Vectorisation et indexation FAISS : terminée
+
+Le script [`src/build_vectorstore.py`](src/build_vectorstore.py) :
+
+- charge les événements nettoyés ;
+- construit les documents LangChain ;
+- découpe les textes en chunks de 500 caractères avec un chevauchement de 50 caractères ;
+- génère les embeddings avec `sentence-transformers/all-MiniLM-L6-v2` ;
+- crée un index FAISS ;
+- conserve les métadonnées des événements dans l'index LangChain.
+
+Les artefacts sont enregistrés dans le dossier `vectorstore/` :
+
+```text
+vectorstore/index.faiss
+vectorstore/index.pkl
+```
+
+Pour reconstruire l'index :
+
+```powershell
+.\.venv\Scripts\python.exe src/build_vectorstore.py
+```
+
+La recherche FAISS et les métadonnées sont vérifiées par [`tests/test_vectorstore.py`](tests/test_vectorstore.py).
+
+### Étape 4 - Chatbot RAG : implémentée, validation Mistral en attente
+
+Le script [`src/chatbot.py`](src/chatbot.py) :
+
+- charge l'index FAISS ;
+- recherche les cinq chunks les plus proches de la question ;
+- construit un contexte avec le titre, la ville, la date et le contenu ;
+- utilise LangChain pour construire le prompt ;
+- envoie le contexte au modèle Mistral `mistral-small-2603` ;
+- répond dans une interface console sans conserver d'historique.
+
+Le test [`tests/test_mistral.py`](tests/test_mistral.py) vérifie séparément la connexion à l'API Mistral.
+
+## Installation
+
+### PowerShell sous Windows
+
+Depuis la racine du projet :
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
+
+### WSL
+
+Dans WSL, utilise l'environnement Linux et ses commandes propres :
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+Ne mélange pas l'environnement Windows avec celui de WSL. Pour ce projet, les commandes doivent être exécutées avec le même environnement que celui sélectionné dans VS Code.
+
+## Configuration Mistral
+
+Crée un fichier `.env` à la racine du projet :
+
+```text
+MISTRAL_API_KEY=ta_cle_api_mistral
+```
+
+Le fichier `.env` est ignoré par Git. Ne publie jamais la clé API dans le dépôt.
+
+Pour vérifier uniquement la présence de la clé sans l'afficher :
+
+```powershell
+python -c "import os; from dotenv import load_dotenv; load_dotenv(); print(bool(os.getenv('MISTRAL_API_KEY')))"
+```
+
+Pour lancer le chatbot :
+
+```powershell
+.\.venv\Scripts\python.exe src\chatbot.py
+```
+
+ou dans WSL :
+
+```bash
+python src/chatbot.py
+```
+
+Tape `quit`, `exit` ou `q` pour arrêter le chatbot.
+
+### Limite API Mistral
+
+Une erreur HTTP `429 Rate limit exceeded` signifie que la requête est refusée par la limite du compte ou du workspace Mistral. La recherche FAISS peut fonctionner même si l'appel Mistral est bloqué. Vérifie les menus **Usage** et **Limites** dans la console Mistral. Les requêtes refusées peuvent ne pas apparaître dans les statistiques d'utilisation.
+
+## Tests
+
+Pour exécuter les tests locaux :
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests -q
+```
+
+Les tests couvrent les événements filtrés, les embeddings, l'index FAISS et les métadonnées. Le test Mistral est un smoke test réseau et doit être lancé séparément :
+
+```powershell
+.\.venv\Scripts\python.exe tests\test_mistral.py
+```
+
+Il nécessite une clé API valide et peut échouer avec `429` si la limite Mistral est atteinte.
+
 
 ## Architecture cible
 
@@ -119,10 +232,16 @@ puls-events-rag/
 │   └── exploration_openagenda.ipynb
 ├── src/
 │   ├── extract.py
-│   └── preprocess.py
+│   ├── preprocess.py
+│   ├── build_vectorstore.py
+│   ├── rag_pipeline.py
+│   └── chatbot.py
 ├── tests/
 │   ├── test_embedding.py
-│   └── test_install.py
+│   ├── test_events.py
+│   ├── test_install.py
+│   ├── test_mistral.py
+│   └── test_vectorstore.py
 ├── vectorstore/
 ├── requirements.txt
 └── README.md
@@ -133,6 +252,7 @@ puls-events-rag/
 ```powershell
 .\.venv\Scripts\python.exe tests/test_install.py
 .\.venv\Scripts\python.exe tests/test_embedding.py
+.\.venv\Scripts\python.exe -m pytest tests -q
 ```
 
 ## Données
@@ -145,3 +265,14 @@ Pour reconstruire les données :
 python src/extract.py
 
 python src/preprocess.py
+python src/build_vectorstore.py
+```
+
+Les fichiers suivants sont générés localement et peuvent être reconstruits :
+
+- `data/events_raw.csv` ;
+- `data/events_filtered.csv` ;
+- `vectorstore/index.faiss` ;
+- `vectorstore/index.pkl`.
+
+

@@ -20,7 +20,7 @@ def main():
     client = Mistral(api_key=api_key)
 
     response = client.chat.complete(
-        model="mistral-small-latest",
+        model="mistral-small-2603",
         messages=[
             {
                 "role": "user",

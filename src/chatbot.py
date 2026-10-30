@@ -2,31 +2,68 @@ import os
 
 from dotenv import load_dotenv
 
-from langchain_community.vectorstores import FAISS
+from langchain_core.prompts import ChatPromptTemplate
+
 from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_mistralai import ChatMistralAI
 
-from mistralai.client import Mistral
+from langchain_community.vectorstores import FAISS
 
 
-# --------------------------------------------------
-# Configuration
-# --------------------------------------------------
+# ==================================================
+# CONFIGURATION
+# ==================================================
 
 load_dotenv()
 
 API_KEY = os.getenv("MISTRAL_API_KEY")
 
 if not API_KEY:
-    raise ValueError(
+    raise RuntimeError(
         "MISTRAL_API_KEY introuvable dans le fichier .env"
     )
 
-VECTORSTORE_PATH = "vectorstore"
+
+# ==================================================
+# PROMPTS
+# ==================================================
+
+SYSTEM_PROMPT = """
+Tu es un assistant spécialisé dans
+les événements culturels.
+
+Utilise uniquement le contexte fourni.
+
+Si l'information n'est pas présente
+dans le contexte, réponds :
+
+"Je ne dispose pas de suffisamment
+d'informations dans les événements indexés."
+
+N'invente jamais :
+- événement
+- lieu
+- date
+- prix
+- lien
+"""
+
+USER_PROMPT = """
+Question :
+{question}
+
+CONTEXTE :
+
+{context}
+
+Répond uniquement avec les informations
+présentes dans le contexte.
+"""
 
 
-# --------------------------------------------------
-# Chargement des embeddings
-# --------------------------------------------------
+# ==================================================
+# EMBEDDINGS
+# ==================================================
 
 print("Chargement du modèle d'embeddings...")
 
@@ -35,14 +72,14 @@ embeddings = HuggingFaceEmbeddings(
 )
 
 
-# --------------------------------------------------
-# Chargement de FAISS
-# --------------------------------------------------
+# ==================================================
+# FAISS
+# ==================================================
 
 print("Chargement du vectorstore FAISS...")
 
 vectorstore = FAISS.load_local(
-    VECTORSTORE_PATH,
+    "vectorstore",
     embeddings,
     allow_dangerous_deserialization=True,
 )
@@ -54,89 +91,91 @@ retriever = vectorstore.as_retriever(
 print("Vectorstore chargé")
 
 
-# --------------------------------------------------
-# Client Mistral
-# --------------------------------------------------
+# ==================================================
+# MISTRAL
+# ==================================================
 
 print("Connexion à Mistral...")
-client = Mistral(
-    api_key=API_KEY
+
+llm = ChatMistralAI(
+    model="mistral-small-2603",
+    temperature=0.1,
+    api_key=API_KEY,
 )
+
 print("Client Mistral initialisé")
 
-# --------------------------------------------------
-# Construction du contexte
-# --------------------------------------------------
+
+# ==================================================
+# PROMPT TEMPLATE
+# ==================================================
+
+prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", SYSTEM_PROMPT),
+        ("human", USER_PROMPT),
+    ]
+)
+
+
+# ==================================================
+# CONTEXTE
+# ==================================================
 
 def build_context(documents):
-    context = []
+
+    chunks = []
 
     for doc in documents:
 
-        title = doc.metadata.get("title", "")
-        city = doc.metadata.get("city", "")
-        date = doc.metadata.get("date", "")
+        meta = doc.metadata
 
-        context.append(
+        chunks.append(
             f"""
-Titre : {title}
-Ville : {city}
-Date : {date}
+Titre : {meta.get("title", "")}
 
-{doc.page_content}
+Ville : {meta.get("city", "")}
+
+Date : {meta.get("date", "")}
+
+Contenu :
+{doc.page_content[:1000]}
 """
         )
 
-    return "\n\n".join(context)
+    return "\n\n---\n\n".join(chunks)
 
 
-# --------------------------------------------------
-# Recherche RAG
-# --------------------------------------------------
+# ==================================================
+# RAG
+# ==================================================
 
 def answer_question(question: str):
 
     documents = retriever.invoke(question)
 
+    if not documents:
+        return (
+            "Je ne dispose pas de suffisamment "
+            "d'informations dans les événements indexés."
+        )
+
     context = build_context(documents)
-
-    prompt = f"""
-Tu es un assistant spécialisé dans les événements culturels.
-
-Réponds uniquement à partir du contexte fourni.
-
-Si l'information n'est pas présente dans le contexte,
-réponds que tu ne disposes pas de suffisamment d'informations.
-
-Contexte :
-{context}
-
-Question :
-{question}
-"""
 
     try:
 
-        response = client.chat.complete(
-            model="mistral-small-latest",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
+        messages = prompt.format_messages(
+            question=question,
+            context=context,
         )
 
-        return (
-            response
-            .choices[0]
-            .message
-            .content
-        )
+        response = llm.invoke(messages)
+
+        return response.content
 
     except Exception as e:
 
-        print("\nFAISS a retrouvé les événements suivants :\n")
+        print("\nFAISS a retrouvé :\n")
 
         for doc in documents:
 
@@ -152,9 +191,9 @@ Question :
         )
 
 
-# --------------------------------------------------
-# Interface console
-# --------------------------------------------------
+# ==================================================
+# CLI
+# ==================================================
 
 def main():
 
@@ -166,20 +205,27 @@ def main():
 
     while True:
 
-        question = input("Question : ")
+        question = input("Question : ").strip()
 
-        if question.lower() in [
+        if question.lower() in {
+
             "quit",
             "exit",
             "q"
-        ]:
+
+        }:
+            print("Au revoir !")
             break
+
+        if not question:
+            continue
 
         print("\nRecherche...\n")
 
         answer = answer_question(question)
 
         print("Réponse :\n")
+
         print(answer)
 
         print("\n" + "-" * 80 + "\n")
