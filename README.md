@@ -99,7 +99,7 @@ Pour reconstruire l'index :
 
 La recherche FAISS et les métadonnées sont vérifiées par [`tests/test_vectorstore.py`](tests/test_vectorstore.py).
 
-### Étape 4 - Chatbot RAG : implémentée, validation Mistral en attente
+### Étape 4 - Chatbot RAG : validée
 
 Le script [`src/chatbot.py`](src/chatbot.py) :
 
@@ -107,10 +107,10 @@ Le script [`src/chatbot.py`](src/chatbot.py) :
 - recherche les cinq chunks les plus proches de la question ;
 - construit un contexte avec le titre, la ville, la date et le contenu ;
 - utilise LangChain pour construire le prompt ;
-- envoie le contexte au modèle Mistral `mistral-small-2603` ;
+- envoie le contexte au modèle Mistral `ministral-3b-2512` ;
 - répond dans une interface console sans conserver d'historique.
 
-Le test [`tests/test_mistral.py`](tests/test_mistral.py) vérifie séparément la connexion à l'API Mistral.
+Le test [`tests/test_mistral.py`](tests/test_mistral.py) vérifie séparément la connexion à l'API Mistral. La génération de réponses a été validée avec le modèle `ministral-3b-2512`.
 
 ## Installation
 
@@ -186,6 +186,24 @@ Les tests couvrent les événements filtrés, les embeddings, l'index FAISS et l
 
 Il nécessite une clé API valide et peut échouer avec `429` si la limite Mistral est atteinte.
 
+## Évaluation du RAG
+
+Le script [`src/evaluate_rag.py`](src/evaluate_rag.py) compare les réponses générées avec les réponses annotées de [`data/evaluation_questions.csv`](data/evaluation_questions.csv). Il calcule une similarité cosinus avec le modèle `all-MiniLM-L6-v2` et sauvegarde les résultats dans :
+
+```text
+data/evaluation_results.csv
+```
+
+Pour lancer l'évaluation :
+
+```powershell
+.\.venv\Scripts\python.exe src\evaluate_rag.py
+```
+
+L'évaluation dépend de l'API Mistral et peut être interrompue par une limite de débit. Le score de similarité est un indicateur du POC, pas une mesure parfaite de la qualité des réponses.
+
+L'intégration Ragas est mise en pause pour le moment afin de préserver la stabilité de l'environnement principal. L'environnement expérimental `.venv-ragas` est séparé et n'est pas nécessaire pour exécuter le chatbot.
+
 
 ## Architecture cible
 
@@ -235,7 +253,8 @@ puls-events-rag/
 │   ├── preprocess.py
 │   ├── build_vectorstore.py
 │   ├── rag_pipeline.py
-│   └── chatbot.py
+│   ├── chatbot.py
+│   └── evaluate_rag.py
 ├── tests/
 │   ├── test_embedding.py
 │   ├── test_events.py
@@ -243,6 +262,9 @@ puls-events-rag/
 │   ├── test_mistral.py
 │   └── test_vectorstore.py
 ├── vectorstore/
+├── docs/
+│   ├── rapport_technique_puls_events.docx
+│   └── presentation_puls_events_rag.pptx
 ├── requirements.txt
 └── README.md
 ```
@@ -274,5 +296,14 @@ Les fichiers suivants sont générés localement et peuvent être reconstruits :
 - `data/events_filtered.csv` ;
 - `vectorstore/index.faiss` ;
 - `vectorstore/index.pkl`.
+
+## Avancement global
+
+- Étape 1 - Environnement : terminée.
+- Étape 2 - Extraction et préparation : validée.
+- Étape 3 - Embeddings et index FAISS : validée.
+- Étape 4 - Chatbot RAG avec Mistral : validée.
+- Évaluation cosine : disponible avec `evaluate_rag.py`.
+- Ragas : mis en pause pour le moment.
 
 

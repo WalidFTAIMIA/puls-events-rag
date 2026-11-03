@@ -1,10 +1,11 @@
 import os
 
 from dotenv import load_dotenv
-from langchain_community.vectorstores import FAISS
+
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_mistralai import ChatMistralAI
+from langchain_community.vectorstores import FAISS
 
 
 # ==================================================
@@ -26,23 +27,32 @@ if not API_KEY:
 # ==================================================
 
 SYSTEM_PROMPT = """
-Tu es un assistant spécialisé dans
-les événements culturels.
+Tu es un assistant spécialisé dans les événements culturels.
 
-Utilise uniquement le contexte fourni.
+Ta mission est de recommander des événements à partir du CONTEXTE fourni.
 
-Si l'information n'est pas présente
-dans le contexte, réponds :
+Règles obligatoires :
 
-"Je ne dispose pas de suffisamment
-d'informations dans les événements indexés."
+1. Utilise uniquement les informations présentes dans le contexte.
+2. N'invente jamais de titre, date, lieu, prix ou description.
+3. Si des événements correspondent à la question, présente-les directement.
+4. Ne dis pas que l'information est absente si le contexte contient des événements pertinents.
+5. Si aucun événement ne correspond réellement à la question, réponds exactement :
 
-N'invente jamais :
-- événement
-- lieu
-- date
-- prix
-- lien
+"Je ne dispose pas de suffisamment d'informations dans les événements indexés."
+
+6. Si un événement est seulement proche de la demande, précise qu'il s'agit d'une correspondance approximative.
+7. Pour chaque recommandation, indique si possible :
+   - le titre ;
+   - la ville ou le lieu ;
+   - la date ;
+   - une courte description.
+8. Ne présente pas un événement musical comme un événement de jazz s'il n'est pas explicitement décrit comme du jazz.
+9. Réponds en français de manière claire et concise.
+10. Si plusieurs événements pertinents sont trouvés, présente-les sous forme de liste.
+11. Privilégie toujours les événements les plus directement liés à la question de l'utilisateur.
+12. Ne commence jamais par une phrase indiquant qu'il manque des informations si tu présentes ensuite des événements pertinents.
+13. Si les résultats sont seulement proches de la question, indique clairement qu'il s'agit de correspondances approximatives.
 """
 
 USER_PROMPT = """
@@ -53,8 +63,7 @@ CONTEXTE :
 
 {context}
 
-Répond uniquement avec les informations
-présentes dans le contexte.
+Répond uniquement avec les informations présentes dans le contexte.
 """
 
 
@@ -116,7 +125,7 @@ prompt = ChatPromptTemplate.from_messages(
 
 
 # ==================================================
-# CONTEXTE
+# CONSTRUCTION DU CONTEXTE
 # ==================================================
 
 def build_context(retrieved_documents):
@@ -125,15 +134,15 @@ def build_context(retrieved_documents):
 
     for doc in retrieved_documents:
 
-        meta = doc.metadata
+        metadata = doc.metadata
 
         chunks.append(
             f"""
-Titre : {meta.get("title", "")}
+Titre : {metadata.get("title", "")}
 
-Ville : {meta.get("city", "")}
+Ville : {metadata.get("city", "")}
 
-Date : {meta.get("date", "")}
+Date : {metadata.get("date", "")}
 
 Contenu :
 {doc.page_content[:1000]}
@@ -159,36 +168,27 @@ def answer_question(question: str):
 
     context = build_context(retrieved_documents)
 
+    messages = prompt.format_messages(
+        question=question,
+        context=context,
+    )
+
     try:
 
-        messages = prompt.format_messages(
-            question=question,
-            context=context,
-        )
         response = llm.invoke(messages)
 
         return response.content
 
-    except Exception as error:  # noqa: BLE001 - l'appel API doit rester non bloquant
-
-        print("\nFAISS a retrouvé :\n")
-
-        for doc in retrieved_documents:
-
-            print(
-                f"- {doc.metadata.get('title', '')}"
-                f" | {doc.metadata.get('city', '')}"
-                f" | {doc.metadata.get('date', '')}"
-            )
+    except Exception as error:
 
         return (
-            "\nErreur lors de l'appel Mistral :\n"
+            "Erreur lors de l'appel Mistral : "
             f"{error}"
         )
 
 
 # ==================================================
-# CLI
+# INTERFACE CLI
 # ==================================================
 
 def main():
@@ -204,11 +204,9 @@ def main():
         question = input("Question : ").strip()
 
         if question.lower() in {
-
             "quit",
             "exit",
-            "q"
-
+            "q",
         }:
             print("Au revoir !")
             break
@@ -221,7 +219,6 @@ def main():
         answer = answer_question(question)
 
         print("Réponse :\n")
-
         print(answer)
 
         print("\n" + "-" * 80 + "\n")
