@@ -1,4 +1,5 @@
 import os
+import time
 
 from dotenv import load_dotenv
 
@@ -156,35 +157,63 @@ Contenu :
 # RAG
 # ==================================================
 
-def answer_question(question: str):
+def answer_question_with_metrics(question: str):
 
+    total_start = time.perf_counter()
+
+    retrieval_start = time.perf_counter()
     retrieved_documents = retriever.invoke(question)
+    retrieval_time = time.perf_counter() - retrieval_start
 
     if not retrieved_documents:
-        return (
-            "Je ne dispose pas de suffisamment "
-            "d'informations dans les événements indexés."
-        )
+        return {
+            "answer": (
+                "Je ne dispose pas de suffisamment "
+                "d'informations dans les événements indexés."
+            ),
+            "retrieval_time_seconds": retrieval_time,
+            "context_time_seconds": 0.0,
+            "prompt_time_seconds": 0.0,
+            "generation_time_seconds": 0.0,
+            "total_time_seconds": time.perf_counter() - total_start,
+            "retrieved_documents": retrieved_documents,
+        }
 
+    context_start = time.perf_counter()
     context = build_context(retrieved_documents)
+    context_time = time.perf_counter() - context_start
 
+    prompt_start = time.perf_counter()
     messages = prompt.format_messages(
         question=question,
         context=context,
     )
+    prompt_time = time.perf_counter() - prompt_start
 
+    generation_start = time.perf_counter()
     try:
-
         response = llm.invoke(messages)
-
-        return response.content
-
+        answer = response.content
     except Exception as error:
-
-        return (
+        answer = (
             "Erreur lors de l'appel Mistral : "
             f"{error}"
         )
+    generation_time = time.perf_counter() - generation_start
+
+    return {
+        "answer": answer,
+        "retrieval_time_seconds": retrieval_time,
+        "context_time_seconds": context_time,
+        "prompt_time_seconds": prompt_time,
+        "generation_time_seconds": generation_time,
+        "total_time_seconds": time.perf_counter() - total_start,
+        "retrieved_documents": retrieved_documents,
+    }
+
+
+def answer_question(question: str):
+    return answer_question_with_metrics(question)["answer"]
 
 
 # ==================================================

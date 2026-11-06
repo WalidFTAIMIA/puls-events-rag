@@ -12,15 +12,15 @@ La source de données retenue est le jeu de données public [Événements public
 
 Le POC final devra permettre de :
 
-- récupérer les événements depuis OpenAgenda ;
-- limiter les données à un périmètre géographique défini ;
-- conserver uniquement les événements récents, âgés de moins d'un an ;
-- nettoyer et structurer les données ;
-- générer des embeddings pour les événements ;
-- construire et reconstruire une base vectorielle FAISS ;
-- rechercher les événements avec LangChain ;
-- générer des réponses avec Mistral ;
-- évaluer la qualité des réponses à partir d'un jeu de questions-réponses annoté.
+- récupérer les événements depuis OpenAgenda 
+- limiter les données à un périmètre géographique défini 
+- conserver uniquement les événements récents, âgés de moins d'un an 
+- nettoyer et structurer les données 
+- générer des embeddings pour les événements 
+- construire et reconstruire une base vectorielle FAISS 
+- rechercher les événements avec LangChain 
+- générer des réponses avec Mistral 
+- évaluer la qualité des réponses à partir d'un jeu de questions-réponses annoté
 
 ## Avancement
 
@@ -28,12 +28,12 @@ Le POC final devra permettre de :
 
 L'environnement Python `.venv` a été créé sous Windows. Les principales bibliothèques du projet ont été installées :
 
-- Pandas ;
-- Requests ;
-- LangChain ;
-- FAISS CPU ;
-- Mistral ;
-- Sentence Transformers pour la génération des embeddings.
+- Pandas 
+- Requests 
+- LangChain 
+- FAISS CPU 
+- Mistral 
+- Sentence Transformers pour la génération des embeddings
 
 Pour utiliser le projet dans VS Code, sélectionner l'interpréteur :
 
@@ -59,12 +59,12 @@ data/events_raw.csv
 
 Le script [`src/preprocess.py`](src/preprocess.py) :
 
-- sélectionne les colonnes utiles ;
-- supprime les événements sans titre ;
-- convertit les dates au format datetime ;
-- supprime les dates invalides ;
-- conserve les événements dont la date est postérieure à la date d'il y a un an ;
-- produit le fichier nettoyé `data/events_filtered.csv`.
+- sélectionne les colonnes utiles 
+- supprime les événements sans titre 
+- convertit les dates au format datetime 
+- supprime les dates invalides 
+- conserve les événements dont la date est postérieure à la date d'il y a un an 
+- produit le fichier nettoyé `data/events_filtered.csv`
 
 Pour exécuter les deux étapes depuis la racine du projet :
 
@@ -77,12 +77,12 @@ Pour exécuter les deux étapes depuis la racine du projet :
 
 Le script [`src/build_vectorstore.py`](src/build_vectorstore.py) :
 
-- charge les événements nettoyés ;
-- construit les documents LangChain ;
-- découpe les textes en chunks de 500 caractères avec un chevauchement de 50 caractères ;
-- génère les embeddings avec `sentence-transformers/all-MiniLM-L6-v2` ;
-- crée un index FAISS ;
-- conserve les métadonnées des événements dans l'index LangChain.
+- charge les événements nettoyés 
+- construit les documents LangChain 
+- découpe les textes en chunks de 500 caractères avec un chevauchement de 50 caractères 
+- génère les embeddings avec `sentence-transformers/all-MiniLM-L6-v2` 
+- crée un index FAISS 
+- conserve les métadonnées des événements dans l'index LangChain
 
 Les artefacts sont enregistrés dans le dossier `vectorstore/` :
 
@@ -103,12 +103,12 @@ La recherche FAISS et les métadonnées sont vérifiées par [`tests/test_vector
 
 Le script [`src/chatbot.py`](src/chatbot.py) :
 
-- charge l'index FAISS ;
-- recherche les cinq chunks les plus proches de la question ;
-- construit un contexte avec le titre, la ville, la date et le contenu ;
-- utilise LangChain pour construire le prompt ;
-- envoie le contexte au modèle Mistral `ministral-3b-2512` ;
-- répond dans une interface console sans conserver d'historique.
+- charge l'index FAISS 
+- recherche les cinq chunks les plus proches de la question 
+- construit un contexte avec le titre, la ville, la date et le contenu 
+- utilise LangChain pour construire le prompt 
+- envoie le contexte au modèle Mistral `ministral-3b-2512` 
+- répond dans une interface console sans conserver d'historique
 
 Le test [`tests/test_mistral.py`](tests/test_mistral.py) vérifie séparément la connexion à l'API Mistral. La génération de réponses a été validée avec le modèle `ministral-3b-2512`.
 
@@ -166,6 +166,8 @@ python src/chatbot.py
 
 Tape `quit`, `exit` ou `q` pour arrêter le chatbot.
 
+À chaque question, le chatbot affiche le temps total de réponse ainsi que le détail de la recherche FAISS et de la génération Mistral.
+
 ### Limite API Mistral
 
 Une erreur HTTP `429 Rate limit exceeded` signifie que la requête est refusée par la limite du compte ou du workspace Mistral. La recherche FAISS peut fonctionner même si l'appel Mistral est bloqué. Vérifie les menus **Usage** et **Limites** dans la console Mistral. Les requêtes refusées peuvent ne pas apparaître dans les statistiques d'utilisation.
@@ -202,7 +204,18 @@ Pour lancer l'évaluation :
 
 L'évaluation dépend de l'API Mistral et peut être interrompue par une limite de débit. Le score de similarité est un indicateur du POC, pas une mesure parfaite de la qualité des réponses.
 
-L'intégration Ragas est mise en pause pour le moment afin de préserver la stabilité de l'environnement principal. L'environnement expérimental `.venv-ragas` est séparé et n'est pas nécessaire pour exécuter le chatbot.
+Le benchmark courant est fixé à : recherche FAISS inférieure ou égale à 1 seconde, génération Mistral inférieure ou égale à 5 secondes et temps total inférieur ou égal à 6 secondes. Le seuil de similarité cosine est fixé à `0.80` ; chaque résultat indique s'il atteint ce seuil.
+
+Une évaluation complémentaire Ragas est disponible dans [`src/evaluate_ragas.py`](src/evaluate_ragas.py). Elle utilise les métriques `answer_relevancy`, `context_recall` et `faithfulness`. Ragas est installé dans l'environnement WSL isolé `.venv-ragas` afin de préserver la stabilité du chatbot principal.
+
+Pour lancer cette évaluation dans WSL :
+
+```bash
+source .venv-ragas/bin/activate
+python src/evaluate_ragas.py
+```
+
+Les dépendances dédiées sont listées dans [`requirements-ragas.txt`](requirements-ragas.txt). Cette évaluation effectue des appels Mistral supplémentaires et peut donc consommer du quota API.
 
 
 ## Architecture cible
@@ -254,7 +267,8 @@ puls-events-rag/
 │   ├── build_vectorstore.py
 │   ├── rag_pipeline.py
 │   ├── chatbot.py
-│   └── evaluate_rag.py
+│   ├── evaluate_rag.py
+│   └── evaluate_ragas.py
 ├── tests/
 │   ├── test_embedding.py
 │   ├── test_events.py
@@ -292,10 +306,10 @@ python src/build_vectorstore.py
 
 Les fichiers suivants sont générés localement et peuvent être reconstruits :
 
-- `data/events_raw.csv` ;
-- `data/events_filtered.csv` ;
-- `vectorstore/index.faiss` ;
-- `vectorstore/index.pkl`.
+- `data/events_raw.csv` 
+- `data/events_filtered.csv` 
+- `vectorstore/index.faiss` 
+- `vectorstore/index.pkl`
 
 ## Avancement global
 
@@ -304,6 +318,6 @@ Les fichiers suivants sont générés localement et peuvent être reconstruits :
 - Étape 3 - Embeddings et index FAISS : validée.
 - Étape 4 - Chatbot RAG avec Mistral : validée.
 - Évaluation cosine : disponible avec `evaluate_rag.py`.
-- Ragas : mis en pause pour le moment.
+- Évaluation Ragas : disponible dans `evaluate_ragas.py` avec l’environnement `.venv-ragas`.
 
 
